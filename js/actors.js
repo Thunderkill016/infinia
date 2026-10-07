@@ -1,11 +1,12 @@
 // js/actors.js — player rig, NPC (spawn/anim/nhãn), hội thoại, shop (tách từ app.js, giữ nguyên logic)
 import * as THREE from 'three';
-import { S, P, DN, Q, fxHooks, saveGame, store } from './core.js';
+import { S, P, DN, Q, fxHooks, saveGame, store, combatHooks } from './core.js';
 import { scene } from './engine.js';
 import { groundHeight, slopeAt, pondBaseY, obstacles, vnTrau, g5aParseGLB, g5aB64ToBytes, vilSites, vilShow } from './world.js'; // Q3: obstacles + trâu (không cycle); v14: parser GLB; VIL: công trình làng
 import { updateHUD, toast, addInf, addXP } from './ui.js';
 import { ROBES, NPCN, HAT_COLORS, HAIR_COLORS, NAMED, GENERIC_LINES, SHOP_ITEMS, SAVE_KEY, POND } from './config.js';
-import { npcLook, hash01, npcLabelText, npcLabelVisible, labelDrawSpec, T1_LABEL_W, T1_LABEL_H, statFish, q5New, q5Accept, q5TurnIn, q5CanTurnIn, q5TrackerText, q5Migrate, Q5_REWARD_XP, Q5_REWARD_INF } from './utils.js';
+import { npcLook, hash01, npcLabelText, npcLabelVisible, labelDrawSpec, T1_LABEL_W, T1_LABEL_H, statFish, q5New, q5Accept, q5TurnIn, q5CanTurnIn, q5TrackerText, q5Migrate, Q5_REWARD_XP, Q5_REWARD_INF, ctxResolve } from './utils.js';
+
 import { vnVaiTex, vnNanTreTex, buildNonLa } from './vn.js'; // VN: texture vải + nón lá chi tiết
 // ---------- 6. Player: rig người có tay/chân, animation đi bộ procedural (v4) ----------
 // buildHumanoid trả về {group, legL, legR, armL, armR, torso, head} — pivot tay/chân đặt ở khớp
@@ -1156,6 +1157,8 @@ function vilNearSite(px, pz, sites) { // công trình nào trong tầm góp? nul
   return null;
 }
 // [VIL-TESTABLE-END]
+// Export riêng cho main.js (nút ACTION), cùng pattern P4 — dòng này không được có comment cuối (bundler strip theo dòng).
+export { vilNearSite };
 
 // ----- VIL runtime: tracker, góp tiền, móc phím E -----
 const vilTrackerEl = document.createElement('div');
@@ -1567,6 +1570,47 @@ btnLead.style.cssText = 'display:none;position:fixed;right:110px;bottom:210px;z-
   'box-shadow:0 2px 10px rgba(0,0,0,.4);';
 btnLead.onclick = () => q3Lead();
 document.body.appendChild(btnLead);
+
+// ---------- CTX. Nút ACTION duy nhất cho mobile (web-first) ----------
+// Desktop giữ nguyên (E/J + phím): E vốn đã theo ngữ cảnh. Mobile gộp Nói/Đánh/
+// Nhặt/Dắt/Giật/Dùng thành 1 nút to ≥84px (to hơn mọi nút cũ để dễ bấm nhất).
+// Nút legacy (btnTalk/btnAttack/btnPick/btnFish/btnLead) giữ nguyên code hiển thị
+// (test cũ vẫn khớp) nhưng bị nút này đè ẩn trên thiết bị chạm.
+export const btnAction = document.createElement('button');
+btnAction.id = 'btn-action';
+btnAction.textContent = 'ACTION';
+btnAction.setAttribute('aria-label', 'Hành động theo ngữ cảnh');
+btnAction.style.cssText = 'display:none;position:fixed;right:24px;bottom:120px;z-index:40;' +
+  'min-width:84px;min-height:84px;border-radius:50%;font-size:19px;font-weight:800;' +
+  'background:rgba(255,211,77,.95);color:#3a2c00;border:3px solid #fff3b0;' +
+  'box-shadow:0 2px 12px rgba(0,0,0,.45);';
+document.body.appendChild(btnAction);
+let ctxKind = null; // kind hiện tại của nút (do main.js đặt qua updateActionBtn)
+btnAction.onclick = () => ctxRun(ctxKind);
+export function ctxRun(kind) { // thực thi hành động theo kind của ctxResolve
+  if (!kind || dlgNPC || shopOpen) return false;
+  if (kind === 'talk') { if (nearNPC) { if (nearNPC.isShop) openShop(); else openDialog(nearNPC); return true; } return false; }
+  if (kind === 'attack') { if (combatHooks.attack) { combatHooks.attack(); return true; } return false; }
+  if (kind === 'pick') return pickVeggie();
+  if (kind === 'lead') return q3Lead();
+  if (kind === 'fish') return fishAction();
+  if (kind === 'vil') return vilAction();
+  return false;
+}
+export function updateActionBtn(ctx) { // main.js gọi mỗi nhịp: đặt nhãn/hiện nút, đè ẩn nút legacy trên mobile
+  if (!isTouch) { btnAction.style.display = 'none'; return; } // desktop: nút cũ + phím
+  // Đè ẩn nút legacy trên mobile (btnAttack nằm ở main.js nên lấy qua id)
+  for (const b of [btnTalk, document.getElementById('btn-attack'), btnPick, btnFish, btnLead])
+    if (b) b.style.display = 'none';
+  ctxKind = ctx ? ctx.kind : null;
+  if (ctx && !dlgNPC && !shopOpen) {
+    btnAction.style.display = 'block';
+    const icon = { talk: '💬 ', attack: '⚔️ ', pick: '🌿 ', lead: '🐃 ', fish: '🎣 ', vil: '🏡 ' }[ctx.kind] || '';
+    btnAction.textContent = icon + ctx.label;
+  } else {
+    btnAction.style.display = 'none';
+  }
+}
 
 // Q3: móc quest vào lần gặp Cu Tít (cùng pattern p1BaTamQuest — idempotent, gọi kép vô hại)
 function q3CuTitQuest(n) {

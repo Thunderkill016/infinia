@@ -295,6 +295,24 @@ export function smoothstep(a, b, x) {
   return t * t * (3 - 2 * t);
 }
 
+// [CTX-TESTABLE-START]
+// CTX (web-first): 1 nút ACTION theo ngữ cảnh thay cho 4 nút Đánh/Nói/Nhặt/Dùng.
+// f: {npc, shop, enemy, veggie, lead, bite, vil, cast} (boolean) — main.js gom từ
+// các module, KHÔNG import chéo nên không cycle. Thứ tự ưu tiên: Nói > Đánh >
+// Nhặt > Dắt > Giật (cắn câu) > Dùng (công trình) > Thả câu.
+function ctxResolve(f) {
+  f = f || {};
+  if (f.npc) return { kind: 'talk', label: f.shop ? 'Mua' : 'Nói' };
+  if (f.enemy) return { kind: 'attack', label: 'Đánh' };
+  if (f.veggie) return { kind: 'pick', label: 'Nhặt' };
+  if (f.lead) return { kind: 'lead', label: 'Dắt' };
+  if (f.bite) return { kind: 'fish', label: 'Giật!' };
+  if (f.vil) return { kind: 'vil', label: 'Dùng' };
+  if (f.cast) return { kind: 'fish', label: 'Câu' };
+  return null;
+}
+// [CTX-TESTABLE-END]
+
 // [Q5-TESTABLE-START]
 // Q5 (R4 vertical slice 8 phút): "Giếng bẩn" — Bà Lụa nhờ → ra ao hạ 3 quái quanh
 // ao (trong 25m tâm ao) → về giếng trả → giếng xây MIỄN PHÍ + làng đổi.
@@ -357,6 +375,7 @@ function statLine(s) { // dòng khoe cho panel Status
 // [STAT-TESTABLE-END]
 export { STAT_MILESTONES, statNew, statNum, statNormalize, statFish, statBoss, statLine };
 export { Q5_NEED, Q5_AO_R, Q5_REWARD_XP, Q5_REWARD_INF, q5New, q5Accept, q5Kill, q5CanTurnIn, q5TurnIn, q5TrackerText, q5Migrate };
+export { ctxResolve };
 
 // [M6A-TESTABLE-START] — tự hạ đồ họa khi máy yếu (học three.js forum K6/K7, v12).
 // Thuần túy (không DOM/THREE): ui.js gọi m6aShouldDrop mỗi frame với fps trung bình.

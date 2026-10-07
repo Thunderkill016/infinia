@@ -60,6 +60,9 @@ export const Q = { level: null };
 // main.js gán các hàm thật vào đây lúc boot; các module khác gọi qua fxHooks.*
 // (chỉ gọi lúc gameplay, sau khi main.js đã chạy nên luôn có hàm thật).
 export const fxHooks = { burst: null, flashGlow: null, resetLvlT: null };
+// CTX (web-first): nút ACTION gọi đánh qua đây để actors.js không import combat (tránh cycle).
+// main.js gán attack thật lúc boot (kèm tiếng chém + check cooldown như nút Đánh cũ).
+export const combatHooks = { attack: null };
 
 // P: vị trí/độ cao player — y=0 vì player.position.y lúc khởi tạo cũng là 0
 export const P = { x: S.x, z: S.z, y: 0, vy: 0, fly: false };

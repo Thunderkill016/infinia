@@ -2,10 +2,10 @@
 // Tách từ work/app.js (giữ nguyên logic, comment tiếng Việt, tên biến/hàm).
 // Thứ tự import: config → utils → core → engine → world → daynight → ui → actors → combat
 import * as THREE from 'three';
-import { SAVE_KEY, SHOP_ITEMS, NAMED } from './config.js';
+import { SAVE_KEY, SHOP_ITEMS, NAMED, POND } from './config.js';
 import { fmtFps, sustainedFps, measureLoadMs, T1_LOAD_BUDGET_MS,
-         shotBlocksView, V1B_CLEAR_R, V1_LABEL_DIST, npcLabelText, npcLabelVisible } from './utils.js';
-import { S, P, DN, Q, fxHooks, maxHpOf, maxMpOf, moveSpeed, saveGame, store } from './core.js';
+         shotBlocksView, V1B_CLEAR_R, V1_LABEL_DIST, npcLabelText, npcLabelVisible, ctxResolve } from './utils.js';
+import { S, P, DN, Q, fxHooks, combatHooks, maxHpOf, maxMpOf, moveSpeed, saveGame, store } from './core.js';
 import { renderer, scene, camera } from './engine.js';
 import { uTime, groundHeight, refreshTreeLOD, refreshGrassLOD, refreshFlowerLOD, treeData, updateLanterns, updateVNAnimals, luyTreMesh, luyLaMesh } from './world.js';
 import { updateDayNight, updateClouds } from './daynight.js';
@@ -14,16 +14,19 @@ import { keys, joy, camYaw, camPitch, camDist, mp, mpBar, setMp, toast,
          updateAutoQuality } from './ui.js';
 import { player, prig, tGlobal, advanceTGlobal, animateHumanoid, animateCharPlayer,
          updateNPCs, updateNPCAnim, updateLabels, updateNearNPC, npcs,
-         nearNPC, dlgNPC, shopOpen, isTouch, labelTick,
-         openDialog, closeDialog, openShop, closeShop, buyItem, updateFishing } from './actors.js';
-import { monsters, updateMonsters, updateParts, updateLvlRing, updateFireflies, updateGlows,
+         nearNPC, nearVeggie, nearTrau, fishSt, dlgNPC, shopOpen, isTouch, labelTick,
+         openDialog, closeDialog, openShop, closeShop, buyItem, updateFishing,
+         vilNearSite, updateActionBtn } from './actors.js';
+import { monsters, bosses, updateMonsters, updateParts, updateLvlRing, updateFireflies, updateGlows,
          playerAttack, playerDodge, atkState, atkArcG,
          dodgeT, dodgeDir, dodgeCd, lastIx, lastIz, lastHurtT, perfNow,
          setDodgeT, setLastInput, burst, flashGlow, resetLvlT,
          isAutoFightOn, setAutoFight } from './combat.js';
+import { vilSites } from './world.js';
 import { initAudio, audioTick, playSwing } from './audio.js'; // C3: âm thanh procedural WebAudio
 // Registry hiệu ứng cho ui.js/actors.js (tránh cycle import → combat)
 fxHooks.burst = burst; fxHooks.flashGlow = flashGlow; fxHooks.resetLvlT = resetLvlT;
+combatHooks.attack = () => { if (atkState.cd <= 0) playSwing(); playerAttack(); }; // CTX: nút ACTION gọi đánh (như nút Đánh cũ)
 
 // ---------- 12. Vòng lặp game ----------
 let walkPhase = 0; // nhịp bước player — chỉ tick() dùng nên để local ở main.js
@@ -32,6 +35,7 @@ let fpsFrames = 0, fpsTime = 0, hudTick = 0; // v3: hudTick cập nhật HUD đ�
 let t1Dts = []; // T1: mảng dt (giây) gần nhất để tính FPS sustained (cửa sổ 5s lăn)
 let t1LoadMs = null, t1FirstFrameDone = false; // T1: load time đo được thật (navigationStart → frame đầu)
 let lodTick = 0; // G2: nhịp tính lại LOD cây/cỏ (0.4s/lần — đủ mượt, rẻ CPU)
+let ctxTick = 0; // CTX: nhịp gom ngữ cảnh cho nút ACTION (0.15s như updateNearNPC)
 
 // ---------- Wiring cross-module (chuyển từ ui.js app.js:2110-2114, 2143-2155) ----------
 // Nút đánh/né (mobile) + phím tắt: gọi hàm actors.js/combat.js → wiring đặt ở main.js
@@ -132,6 +136,28 @@ function tick() {
     refreshTreeLOD(camera.position.x, camera.position.z);
     refreshGrassLOD(camera.position.x, camera.position.z);
     refreshFlowerLOD(camera.position.x, camera.position.z);
+  }
+  ctxTick += dt; // CTX (web-first): gom ngữ cảnh mỗi 0.15s cho nút ACTION duy nhất (rẻ như updateNearNPC)
+  if (ctxTick > 0.15) {
+    ctxTick = 0;
+    let enemyNear = false;
+    for (const m of monsters) {
+      if (m.alive && !m.shotPin && Math.hypot(m.x - P.x, m.z - P.z) < 2.5) { enemyNear = true; break; }
+    }
+    if (!enemyNear) for (const b of bosses) {
+      if (b.alive && Math.hypot(b.x - P.x, b.z - P.z) < 3.2) { enemyNear = true; break; }
+    }
+    updateActionBtn(ctxResolve({
+      npc: !!nearNPC && !dlgNPC && !shopOpen,
+      shop: !!(nearNPC && nearNPC.isShop),
+      enemy: enemyNear && !dlgNPC && !shopOpen,
+      veggie: !!nearVeggie && !dlgNPC && !shopOpen,
+      lead: !!nearTrau && !dlgNPC && !shopOpen,
+      bite: fishSt.phase === 'bite' && !dlgNPC && !shopOpen,
+      vil: !!vilNearSite(P.x, P.z, vilSites) && !dlgNPC && !shopOpen,
+      cast: fishSt.phase === 'idle' && !dlgNPC && !shopOpen &&
+        Math.hypot(P.x - POND.x, P.z - POND.z) < 10, // bờ ao (cùng P4_FISH_DIST)
+    }));
   }
   updateCamera();
 
