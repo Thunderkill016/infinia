@@ -59,10 +59,10 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => keys[e.code] = false);
 
-function tick() {
-  requestAnimationFrame(tick);
-  const rawDt = clock.getDelta(); // wall-clock thật (không clamp) — dùng cho HUD/FPS/labels để chịu được fps thấp
-  const dt = Math.min(rawDt, 0.05); // dt logic game (clamp để không nhảy cóc khi lag)
+function stepGame(dt) { // 1 bước simulation cố định (dt luôn = STEP)
+  // WEB-FIRST (doc nghiên cứu §2): gameplay giống hệt trên mọi màn 60/144/165Hz —
+  // physics/AI/combat không còn phụ thuộc FPS. Render interpolation là bước tiếp theo
+  // (cần tách sim/render toàn game); hiện tại step 60Hz + render mới nhất đã đủ mượt.
   advanceTGlobal(dt); uTime.value = tGlobal; // v4: đồng hồ chung cho animation + shader cỏ
 
   // --- Input di chuyển (tương đối theo hướng camera) ---
@@ -117,7 +117,6 @@ function tick() {
 
   updateNPCs(dt);
   updateNPCAnim(dt); // v4: tay chân NPC + nhãn bay theo
-  updateLabels(rawDt); // wall-clock: nhãn NPC hiện đúng hẹn dù fps thấp
   updateNearNPC(dt);
   updateFishing(dt); // P4 (v12): phao câu + nhịp cá cắn ở ao sen
   updateMonsters(dt); // v3: quái + combat
@@ -172,6 +171,21 @@ function tick() {
     updateHUD();
     btnDodge.classList.toggle('cd', dodgeCd > 0);
   }
+} // hết stepGame — dưới đây là tick render theo rAF (wall-clock, không đụng simulation)
+
+// WEB-FIRST fixed timestep: rAF chỉ quyết định render; mỗi rAF chạy tối đa MAX_STEPS
+// step 1/60s (chống xoáy chết khi lag), thời gian dư thì bỏ. Tab ẩn → rAF dừng →
+// simulation pause theo; quay lại không trả nợ quá 0.25s. Nhãn/HUD/FPS dùng rawDt như cũ.
+const STEP = 1 / 60, MAX_STEPS = 3;
+let simAcc = 0;
+function tick() {
+  requestAnimationFrame(tick);
+  const rawDt = clock.getDelta(); // wall-clock thật — HUD/FPS/labels, không dùng cho simulation
+  simAcc += Math.min(rawDt, 0.25); // kẹp nợ thời gian
+  let n = 0;
+  while (simAcc >= STEP && n < MAX_STEPS) { stepGame(STEP); simAcc -= STEP; n++; }
+  if (n === MAX_STEPS) simAcc = 0; // lag nặng: bỏ dư, không xoáy chết
+  updateLabels(rawDt); // wall-clock: nhãn NPC hiện đúng hẹn dù fps thấp
   t1Dts.push(rawDt); if (t1Dts.length > 600) t1Dts.shift(); // T1: giữ đủ dt cho cửa sổ 5s lăn (rawDt = fps thật)
   // M6A (v12): máy yếu (<40fps liên tục 3s) → tự hạ 1 bậc đồ họa; tool ?shot= thì không (giữ preset ổn định để chụp)
   if (location.search.indexOf('shot=') < 0) updateAutoQuality(dt, sustainedFps(t1Dts) || 0);

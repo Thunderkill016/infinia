@@ -409,6 +409,23 @@
 })();
 </script>
 
+<!-- WEB-FIRST landscape canonical: mobile dọc vẫn chơi được (fallback), nhưng gợi xoay ngang -->
+<div id="rotate-hint">🔄 Xoay ngang máy để chơi ngon nhất <span id="rotate-x">✕</span></div>
+<style>
+  #rotate-hint { display:none; }
+  @media (orientation:portrait) and (pointer:coarse) {
+    #rotate-hint { display:block; position:fixed; top:calc(64px + env(safe-area-inset-top, 0px)); left:50%;
+      transform:translateX(-50%); z-index:35; font-size:13px; font-weight:600; color:#ffe9a8;
+      background:rgba(0,0,0,.7); border:1px solid #ffd34d; padding:8px 14px; border-radius:999px;
+      white-space:nowrap; }
+    #rotate-x { margin-left:8px; padding:8px; cursor:pointer; }
+  }
+</style>
+<script>
+  (function(){ var x = document.getElementById('rotate-x'), h = document.getElementById('rotate-hint');
+    if (x && h) x.onclick = function(){ h.style.display = 'none'; }; })();
+</script>
+
 <!-- C2: màn hình title/help tiếng Việt — đè lên canvas khi mới vào game -->
 <div id="title-screen">
   <div class="title-inner">
