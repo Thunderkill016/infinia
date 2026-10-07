@@ -186,6 +186,9 @@ document.getElementById('btn-newgame').onclick = () => {
 };
 setInterval(saveGame, 60000); // autosave mỗi 60 giây (CO_CHE_GAME mục 6.1)
 addEventListener('beforeunload', saveGame);
+// WEB-FIRST (pivot §15): ẩn tab → save ngay (mobile chuyển app/tab là chuyện thường);
+// rAF tự dừng khi tab ẩn nên simulation pause theo, dt clamp 0.05 chống nhảy cóc lúc quay lại.
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
 
 // Hook kiểm thử headless v3: ?v3test → đánh quái 0 đến chết, ghi kết quả vào title
 if (location.search.indexOf('v3test') >= 0) {

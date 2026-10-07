@@ -59,3 +59,22 @@ NĐ 147/2024, NĐ 13/2023). Đây là bản duy nhất để tra cứu — chi t
 ## 10. Việc làm ngay (7 ngày)
 Ngày 1–2 khóa tutorial 3 phút · Ngày 3–4 mời 10 tester · Ngày 5 đăng itch.io ẩn ·
 Ngày 6–7 quay 2 clip TikTok · Song song: hạ budget embed → 800KB + `?seed=&bench=1` + baseline 5 screenshot.
+
+## 11. PIVOT WEB-FIRST (2026-10-07, quyết định kiến trúc)
+Infinia KHÔNG làm "3D open-world RPG thu nhỏ" nữa. Chuẩn mới:
+**game hành động làng quê 3D nhỏ, vòng chơi 5–15 phút, map đặc không lớn, 1 nút Action theo ngữ cảnh
+(NÓI/NHẶT/ĐÁNH/DÙNG), landscape là layout chính, làng thay đổi thấy được sau mỗi session.**
+- Combat: read→react (telegraph → né → phạt), không aim, không combo dài, không skill mới.
+- Kỹ thuật: WebGL2 chính (không WebGPU), fixed timestep + render interpolation, Auto quality
+đo frame-time 5–10s đầu, page lifecycle (ẩn tab → pause, thoát → save), WebAudio resume từ nút Chơi ngay.
+- Đồ họa: VIETNAMESE STORYBOOK DIORAMA (shape + palette + composition, không đua polygon);
+vật liệu đơn giản + vertex color + 1 atlas; foliage opaque, cấm transparency-heavy;
+1 directional + 1 hemisphere + glow giả; shadow thật chỉ tier cao, còn lại blob shadow.
+- Asset: first play ≤8MB, deferred sau gameplay ≤20–25MB (bỏ tư duy single-file cho mọi thứ);
+pipeline Blender → GLB → gltf-transform optimize → Meshopt → KTX2.
+- STOP: thêm loại quái/skill/item/crafting, map lớn, vùng mới, thêm NPC, nhiều boss,
+nhiều shader, chạy theo asset quality vô hạn.
+- TIẾP TỤC: bản sắc làng Việt, village transformation, NPC depth, loop 5–15 phút,
+contextual controls, compact map, combat readability, progressive loading, Auto quality, mobile perf.
+- Nghiên cứu tiếp: R1 benchmark cross-platform → R2 art bible → R3 perf budget →
+R4 vertical slice 8 phút (NPC → vấn đề → đi ra → gameplay → về → làng đổi).
