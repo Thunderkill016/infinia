@@ -5,7 +5,7 @@ import { scene } from './engine.js';
 import { groundHeight, slopeAt, pondBaseY, obstacles, vnTrau, g5aParseGLB, g5aB64ToBytes, vilSites, vilShow } from './world.js'; // Q3: obstacles + trâu (không cycle); v14: parser GLB; VIL: công trình làng
 import { updateHUD, toast, addInf, addXP } from './ui.js';
 import { ROBES, NPCN, HAT_COLORS, HAIR_COLORS, NAMED, GENERIC_LINES, SHOP_ITEMS, SAVE_KEY, POND } from './config.js';
-import { npcLook, hash01, npcLabelText, npcLabelVisible, labelDrawSpec, T1_LABEL_W, T1_LABEL_H, statFish } from './utils.js';
+import { npcLook, hash01, npcLabelText, npcLabelVisible, labelDrawSpec, T1_LABEL_W, T1_LABEL_H, statFish, q5New, q5Accept, q5TurnIn, q5CanTurnIn, q5TrackerText, q5Migrate, Q5_REWARD_XP, Q5_REWARD_INF } from './utils.js';
 import { vnVaiTex, vnNanTreTex, buildNonLa } from './vn.js'; // VN: texture vải + nón lá chi tiết
 // ---------- 6. Player: rig người có tay/chân, animation đi bộ procedural (v4) ----------
 // buildHumanoid trả về {group, legL, legR, armL, armR, torso, head} — pivot tay/chân đặt ở khớp
@@ -631,6 +631,7 @@ export function openDialog(n) {
   dlgNPC = n; dlgLine = 0;
   q3CuTitQuest(n); // Q3: nói chuyện Cu Tít để nhận/trả quest "Trâu Cà Phê đi lạc" (idempotent như p1BaTamQuest)
   q4OngDoQuest(n); // Q4: nói chuyện Ông Đồ Nho để trao "Gói bánh ít" (idempotent, chỉ chạy khi đang giữ bánh)
+  q5BaLuaQuest(n); // Q5 (R4 slice): nói chuyện Bà Lụa để nhận/trả quest "Giếng bẩn" (idempotent)
   const first = !S.talked.includes(n.seq);
   // Thưởng: lần đầu nói chuyện +12 XP +8∞; nói lại +2 XP +1∞
   const r = first ? { xp: 12, inf: 8 } : { xp: 2, inf: 1 };
@@ -1738,3 +1739,50 @@ function q4OngDoQuest(n) {
   }
 }
 updateHUD(); q4RenderTracker(); // vẽ tracker q4 sau khi S.q4 đã khởi tạo
+
+// ---------- Q5. Quest "Giếng bẩn" — R4 vertical slice 8 phút ----------
+// Vòng slice: Bà Lụa (seq 0) nhờ → ra ao hạ 3 quái quanh ao → về gặp Bà Lụa →
+// giếng xây MIỄN PHÍ (vilShow) + thưởng. Tái dùng toàn hệ cũ: dialog, killMonster,
+// VIL visual/tracker. Không fail-state: đi đâu, đánh gì cũng không hỏng quest.
+const q5QuestEl = document.createElement('div');
+q5QuestEl.id = 'quest5-tracker';
+q5QuestEl.style.cssText = 'font-size:13px;font-weight:600;color:#9adcff;margin-top:2px;display:none;';
+document.getElementById('quest').after(q5QuestEl);
+function q5RenderTracker() {
+  const t = q5TrackerText(S.q5);
+  q5QuestEl.style.display = t ? 'block' : 'none';
+  q5QuestEl.textContent = t;
+}
+(function q5InitQ5() { // vá S.q5 từ save (cùng pattern q2/q3/q4)
+  let raw = (S.q5 && typeof S.q5 === 'object') ? S.q5 : null;
+  if (!raw) {
+    try {
+      const d = JSON.parse(store.get(SAVE_KEY) || '{}');
+      if (d && d.q5 && typeof d.q5 === 'object') raw = d.q5;
+    } catch (e) { /* save hỏng: quest bắt đầu từ chưa nhận */ }
+  }
+  S.q5 = q5Migrate(raw);
+})();
+function q5BaLuaQuest(n) { // móc vào openDialog, idempotent như q3/q4
+  if (!n || n.seq !== 0 || !S.q5) return;
+  if (S.q5.state === 'none') { // nhận quest: nghe chuyện giếng bẩn
+    S.q5 = q5Accept(S.q5);
+    toast('Bà Lụa: "Giếng làng có mùi lạ... chắc vũng thiu ngoài ao tràn vào. Cháu ra ao dọn 3 con giúp bà nhé!" 💧');
+    fxHooks.burst(n.x, 1.8, n.z, 0x9adcff, 10, 1.6, 3.5);
+    updateHUD(); q5RenderTracker(); saveGame();
+  } else if (q5CanTurnIn(S.q5)) { // đủ 3 con → trả: giếng xây miễn phí + thưởng
+    S.q5 = q5TurnIn(S.q5);
+    addInf(Q5_REWARD_INF); addXP(Q5_REWARD_XP);
+    if (S.vil && !S.vil.gieng) { // slice payoff: làng đổi ngay — giếng mọc mái miễn phí
+      S.vil.gieng = true; vilShow('gieng'); vilRenderTracker();
+      toast(`🎯 Hoàn thành: Giếng bẩn! Giếng làng đã sạch (miễn phí!) +${Q5_REWARD_XP} XP · +${Q5_REWARD_INF}∞ — "Nước mát quá, cả làng cảm ơn cháu!"`);
+    } else { // giếng đã xây từ trước: thưởng thêm thay vì xây lại
+      addInf(30);
+      toast(`🎯 Hoàn thành: Giếng bẩn! +${Q5_REWARD_XP} XP · +${Q5_REWARD_INF + 30}∞ — "Giếng đã sạch rồi, bà thưởng thêm cho cháu!"`);
+    }
+    fxHooks.burst(n.x, 1.8, n.z, 0xffd34d, 16, 2.2, 4);
+    updateHUD(); q5RenderTracker(); saveGame();
+  }
+  // active (chưa đủ 3) / done: không spam — tracker HUD đã đủ gợi ý
+}
+q5RenderTracker(); // vẽ tracker q5 sau khi S.q5 đã khởi tạo

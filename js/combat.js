@@ -6,7 +6,7 @@ import { groundHeight, slopeAt, obstacles, canvasTex, lanterns } from './world.j
 import { updateHUD, toast, addInf, addXP } from './ui.js';
 import { player, tGlobal, isTouch, dlgNPC, shopOpen } from './actors.js';
 import { DAY_LEN, PMAX, FFN, POND } from './config.js'; // POND: ổ boss Vũng Thiu Mẹ ở ao đông
-import { P2_KINDS, isNightAt, timeUntilNight, crabFrontFactor, batHittable, glowTextureSpec, ffGlowCount, BLOOM, bloomAllowed, glowIntensity, statBoss } from './utils.js';
+import { P2_KINDS, isNightAt, timeUntilNight, crabFrontFactor, batHittable, glowTextureSpec, ffGlowCount, BLOOM, bloomAllowed, glowIntensity, statBoss, q5Kill, q5CanTurnIn, Q5_AO_R } from './utils.js';
 import { vnVayQuatTex, vnDaTrauTex, vnLaSenTex } from './vn.js'; // VN: vảy quái + da sần + lá sen cho boss (canvas 0 byte)
 // ---------- 7g. Combat tối giản (v3) — đúng CO_CHE_GAME 5.1 ----------
 // Quái "con của vũng thiu": blob xanh đen, lang thang rìa làng, đuổi khi player lại gần
@@ -471,6 +471,12 @@ export function killMonster(m) {
   burst(P.x, P.y + 1.2, P.z, 0xffd34d, 6, 1.2, 4); // v4: tia ∞ bay lên khi nhặt
   flashGlow(m.x, by, m.z, 0x7fe8d0, 2.6, 0.5); // G1: flash hạ quái
   toast(`Hạ ${m.cfg.name}! +${m.cfg.xp} XP · +${infGain}∞`);
+  // Q5 (R4 slice): hạ quái quanh ao khi đang làm quest "Giếng bẩn" → đếm vào quest
+  if (S.q5 && S.q5.state === 'active' && Math.hypot(m.x - POND.x, m.z - POND.z) < Q5_AO_R) {
+    S.q5 = q5Kill(S.q5, true); saveGame();
+    if (q5CanTurnIn(S.q5)) toast('💧 Đủ 3 con rồi! Về giếng gặp Bà Lụa nhé!');
+    else toast(`💧 Dọn vũng thiu quanh ao (${S.q5.kills}/${3})`);
+  }
 }
 export function retreatMonster(m) { // P2: trời sáng → dơi bay về hang (không rớt đồ), hẹn đêm sau ra lại
   m.alive = false; m.g.visible = false; m.diveT = 0;

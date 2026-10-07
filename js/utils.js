@@ -295,6 +295,41 @@ export function smoothstep(a, b, x) {
   return t * t * (3 - 2 * t);
 }
 
+// [Q5-TESTABLE-START]
+// Q5 (R4 vertical slice 8 phút): "Giếng bẩn" — Bà Lụa nhờ → ra ao hạ 3 quái quanh
+// ao (trong 25m tâm ao) → về giếng trả → giếng xây MIỄN PHÍ + làng đổi.
+// Thuần túy (không THREE/DOM). Combat gọi q5Kill (utils không import ai nên không cycle).
+const Q5_NEED = 3;         // hạ 3 con quanh ao
+const Q5_AO_R = 25;        // tính quái "quanh ao" trong 25m tâm ao
+const Q5_REWARD_XP = 40, Q5_REWARD_INF = 60;
+function q5New() { return { state: 'none', kills: 0 }; }
+function q5Accept(q) { // nhận từ Bà Lụa
+  if (!q || q.state !== 'none') return q;
+  return { state: 'active', kills: 0 };
+}
+function q5Kill(q, nearPond) { // hạ 1 con: chỉ đếm khi quest active + quanh ao
+  if (!q || q.state !== 'active' || !nearPond) return q;
+  return { ...q, kills: q.kills + 1 };
+}
+function q5CanTurnIn(q) { return !!q && q.state === 'active' && q.kills >= Q5_NEED; }
+function q5TurnIn(q) { // trả cho Bà Lụa ở giếng
+  if (!q5CanTurnIn(q)) return q;
+  return { ...q, state: 'done' };
+}
+function q5TrackerText(q) {
+  if (!q || q.state === 'none') return '';
+  if (q.state === 'done') return '💧 Giếng sạch: ✓ hoàn thành!';
+  return `💧 Giếng bẩn: dọn quái quanh ao ${Math.min(q.kills, Q5_NEED)}/${Q5_NEED}`;
+}
+function q5Migrate(raw) { // save cũ → mặc định an toàn
+  if (raw && typeof raw === 'object' && (raw.state === 'active' || raw.state === 'done')) {
+    const k = Number.isInteger(raw.kills) && raw.kills >= 0 ? raw.kills : 0;
+    return { state: raw.state, kills: k };
+  }
+  return q5New();
+}
+// [Q5-TESTABLE-END]
+
 // [STAT-TESTABLE-START]
 // STAT (v17) — sổ kỷ lục làng: đếm cá/boss đã hạ, mốc khoe 10/25/50 (học Balatro M11).
 // Thuần túy (không THREE/DOM). stats: {fish, boss} — số thiếu/hỏng coi như 0.
@@ -321,6 +356,7 @@ function statLine(s) { // dòng khoe cho panel Status
 }
 // [STAT-TESTABLE-END]
 export { STAT_MILESTONES, statNew, statNum, statNormalize, statFish, statBoss, statLine };
+export { Q5_NEED, Q5_AO_R, Q5_REWARD_XP, Q5_REWARD_INF, q5New, q5Accept, q5Kill, q5CanTurnIn, q5TurnIn, q5TrackerText, q5Migrate };
 
 // [M6A-TESTABLE-START] — tự hạ đồ họa khi máy yếu (học three.js forum K6/K7, v12).
 // Thuần túy (không DOM/THREE): ui.js gọi m6aShouldDrop mỗi frame với fps trung bình.
