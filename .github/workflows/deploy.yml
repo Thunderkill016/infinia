@@ -1,0 +1,48 @@
+# .github/workflows/deploy.yml — CI/CD: test → build single-file → đóng gói PWA → Pages.
+# Secrets cần: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID (Pages). Chưa có thì job
+# deploy bỏ qua êm (vẫn chạy test+build để chặn bản lỗi).
+name: infinia-ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Sinh app.js cho tests
+        run: python3 tools/gen-test-appjs.py
+      - name: Chạy tests (trừ g5a cần asset Kenney ngoài)
+        run: |
+          fail=0
+          for t in tests/*.test.mjs; do
+            [ "$t" = "tests/g5a-trees.test.mjs" ] && continue
+            node "$t" || fail=1
+          done
+          exit $fail
+      - name: Build single-file
+        run: python3 build-standalone.py
+      - name: Đóng gói PWA
+        run: bash tools/make-product.sh
+      - name: Kiểm tra ngân sách <8MB
+        run: python3 -c "import os; s=os.path.getsize('product/dist/index.html'); assert s < 8*1024*1024, s; print('OK', s)"
+      - uses: actions/upload-artifact@v4
+        with: { name: infinia-pwa, path: product/dist/ }
+  deploy:
+    needs: test-build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: infinia-pwa, path: dist }
+      - name: Deploy Cloudflare Pages (bỏ qua nếu thiếu secret)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=infinia

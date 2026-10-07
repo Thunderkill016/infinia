@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>INFINIA — Prototype 3D Open World</title>
+<style>
+  /* ===== Khung chung ===== */
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#0b0e14;
+    font-family:'Segoe UI',system-ui,sans-serif; color:#fff; user-select:none; }
+  #game canvas { display:block; }
+
+  /* ===== HUD góc trái: đúng chất Vô Hạn ===== */
+  #hud-tl { position:fixed; top:10px; left:10px; z-index:10; pointer-events:none; }
+  #inf-line { display:flex; align-items:center; gap:8px; }
+  #inf-symbol { font-size:34px; color:#ffd34d; text-shadow:0 0 12px #b8860b; font-weight:700; }
+  #inf-count { font-size:26px; color:#ffd34d; font-weight:700; font-variant-numeric:tabular-nums; }
+  #lv { font-size:15px; color:#ffe9a8; margin-top:2px; font-weight:600; }
+  .bar-wrap { width:190px; height:13px; background:rgba(0,0,0,.55); border:1px solid #555;
+    border-radius:7px; margin-top:5px; overflow:hidden; }
+  .bar { height:100%; width:100%; transition:width .25s; }
+  #hp-bar { background:linear-gradient(90deg,#e0393e,#ff7a7a); }
+  #mp-bar { background:linear-gradient(90deg,#2f6fed,#6fb1ff); }
+
+  /* ===== HUD góc phải: nút chức năng + FPS ===== */
+  #hud-tr { position:fixed; top:10px; right:10px; z-index:10; display:flex; gap:8px; align-items:center; }
+  .btn { background:rgba(20,24,34,.82); border:1px solid #6b7280; color:#e5e7eb;
+    padding:10px 16px; border-radius:8px; font-size:14px; cursor:pointer;
+    min-height:44px; min-width:44px; display:inline-flex; align-items:center; justify-content:center; }
+  /* M2: mọi nút bấm ≥44px theo chuẩn ngón tay */
+  .btn:active { transform:scale(.96); }
+  .btn.on { border-color:#ffd34d; color:#ffd34d; }
+  #fps { font-size:13px; color:#9df09d; background:rgba(0,0,0,.55); padding:6px 9px;
+    border-radius:6px; font-variant-numeric:tabular-nums; min-width:86px; text-align:center; }
+
+  /* ===== Panel placeholder ===== */
+  .panel { position:fixed; top:64px; right:10px; width:250px; z-index:11;
+    background:rgba(12,15,22,.94); border:1px solid #6b7280; border-radius:10px;
+    padding:14px; display:none; }
+  .panel h3 { font-size:15px; color:#ffd34d; margin-bottom:8px; }
+  .panel p { font-size:13px; color:#c9cdd6; line-height:1.5; }
+  .panel .close { float:right; cursor:pointer; color:#9aa0ae; font-size:18px;
+    padding:12px 16px; margin:-12px -12px 0 0; } /* M2: vùng chạm ✕ ≥44px */
+
+  /* ===== Joystick ảo (mobile) ===== */
+  #joystick { position:fixed; left:26px; bottom:26px; width:120px; height:120px;
+    border-radius:50%; background:rgba(255,255,255,.08); border:2px solid rgba(255,255,255,.25);
+    z-index:10; display:none; touch-action:none; }
+  #stick { position:absolute; left:35px; top:35px; width:50px; height:50px; border-radius:50%;
+    background:rgba(255,255,255,.35); border:2px solid rgba(255,255,255,.5); }
+
+  /* ===== Nút góc phải dưới ===== */
+  #hud-br { position:fixed; right:14px; bottom:20px; z-index:10; display:flex; gap:8px; }
+
+  /* ===== Panel debug ===== */
+  #debug-panel { position:fixed; left:10px; bottom:14px; z-index:11; width:230px;
+    background:rgba(12,15,22,.94); border:1px solid #4ade80; border-radius:10px;
+    padding:12px; display:none; font-size:13px; line-height:1.7; }
+  #debug-panel h3 { color:#4ade80; font-size:14px; margin-bottom:6px; }
+  #debug-panel label { display:flex; align-items:center; gap:8px; cursor:pointer; color:#d1d5db; padding:6px 2px; }
+  #debug-panel input[type=checkbox] { width:22px; height:22px; accent-color:#4ade80; flex:none; } /* M2: checkbox đủ to để chạm */
+
+  /* ===== Thanh XP + quest tracker (v2) ===== */
+  .xp-wrap { height:8px; }
+  #xp-bar { background:linear-gradient(90deg,#ffd34d,#fff3b0); width:0%; }
+  #quest { margin-top:6px; font-size:13px; color:#ffe9a8; font-weight:600; }
+
+  /* ===== Gợi ý nói chuyện + nút Nói mobile (v2) ===== */
+  #talk-prompt { position:fixed; bottom:64px; left:50%; transform:translateX(-50%); z-index:10;
+    font-size:14px; color:#ffd34d; background:rgba(0,0,0,.65); border:1px solid #ffd34d;
+    padding:8px 16px; border-radius:10px; display:none; pointer-events:none; font-weight:600; }
+  #btn-talk { position:fixed; right:24px; bottom:120px; width:72px; height:72px; border-radius:50%;
+    z-index:10; display:none; background:rgba(255,211,77,.9); border:2px solid #fff;
+    color:#3a2c00; font-size:16px; font-weight:700; cursor:pointer; }
+
+  /* ===== Hộp thoại NPC (v2) ===== */
+  #dialog { position:fixed; bottom:110px; left:50%; transform:translateX(-50%); z-index:12;
+    width:min(430px,92vw); background:rgba(12,15,22,.96); border:1px solid #ffd34d;
+    border-radius:12px; padding:16px; display:none; }
+  #dialog h3 { font-size:15px; color:#ffd34d; margin-bottom:8px; }
+  #dialog p { font-size:14px; color:#eef0f4; line-height:1.6; min-height:44px; }
+  #dlg-reward { font-size:13px; color:#9df09d; margin-top:6px; min-height:18px; }
+  #dialog .btn { margin-top:10px; width:100%; }
+
+  /* ===== Hiệu ứng lên cấp (v2) ===== */
+  #lvup-flash { position:fixed; inset:0; z-index:20; pointer-events:none; opacity:0;
+    background:radial-gradient(circle, rgba(255,211,77,.55), transparent 70%); transition:opacity .15s; }
+  #lvup-text { position:fixed; top:38%; left:50%; transform:translate(-50%,-50%) scale(.8); z-index:21;
+    font-size:42px; font-weight:800; color:#ffd34d; text-shadow:0 0 18px #b8860b, 0 2px 0 #5c430a;
+    opacity:0; pointer-events:none; transition:all .3s; white-space:nowrap; }
+  #lvup-text.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+
+  /* ===== Nút Đánh / Né trên mobile (v3) ===== */
+  .abtn { position:fixed; width:76px; height:76px; border-radius:50%; z-index:10; display:none;
+    font-size:16px; font-weight:700; cursor:pointer; border:2px solid rgba(255,255,255,.85);
+    touch-action:none; }
+  .abtn:active { transform:scale(.93); }
+  #btn-attack { right:112px; bottom:38px; background:rgba(224,57,62,.92); color:#fff; }
+  #btn-dodge { right:26px; bottom:196px; background:rgba(47,111,237,.92); color:#fff; }
+  .abtn.cd { opacity:.35; }
+
+  /* ===== Shop Bà Tám Xén (v3) ===== */
+  #shop { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:13;
+    width:min(400px,92vw); background:rgba(12,15,22,.97); border:1px solid #ffd34d;
+    border-radius:12px; padding:16px; display:none; }
+  #shop h3 { font-size:16px; color:#ffd34d; margin-bottom:4px; }
+  .shop-sub { font-size:13px; color:#c9cdd6; font-style:italic; margin-bottom:10px; }
+  .shop-item { display:flex; justify-content:space-between; align-items:center;
+    background:rgba(255,255,255,.05); border:1px solid #444; border-radius:8px;
+    padding:10px 12px; margin-bottom:8px; }
+  .shop-item b { font-size:14px; color:#fff; display:block; }
+  .shop-item span { font-size:12px; color:#9aa0ae; }
+  .shop-item .btn.owned { border-color:#4ade80; color:#4ade80; }
+  #shop-inf { font-size:13px; color:#ffd34d; margin:8px 0; font-weight:600; }
+  #shop .btn.wide { width:100%; margin-top:4px; }
+
+  /* ===== Toast thông báo (v3) ===== */
+  #toast { position:fixed; top:70px; left:50%; transform:translateX(-50%); z-index:22;
+    background:rgba(0,0,0,.82); border:1px solid #ffd34d; color:#ffe9a8; font-size:14px;
+    padding:10px 18px; border-radius:10px; display:none; font-weight:600;
+    white-space:nowrap; max-width:94vw; overflow:hidden; text-overflow:ellipsis; }
+
+  #hint { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:9;
+    font-size:12px; color:#d1d5db; background:rgba(0,0,0,.5); padding:6px 12px;
+    border-radius:8px; pointer-events:none; white-space:nowrap; }
+
+  /* ===== Vignette + color grade nhẹ (v5): overlay CSS, 0 cost GPU ===== */
+  #vignette { position:fixed; inset:0; z-index:5; pointer-events:none;
+    background:
+      radial-gradient(ellipse at center, transparent 52%, rgba(8,6,18,.42) 100%),
+      linear-gradient(rgba(255,170,90,.045), rgba(25,45,95,.075)); }
+
+  /* ===== Đồng hồ ngày–đêm (v5) ===== */
+  #dayclock { margin-top:6px; font-size:13px; color:#ffe9a8; font-weight:600; }
+
+  /* ===== Nút preset chất lượng (v5) ===== */
+  .qrow { display:flex; gap:6px; margin-top:6px; }
+  .qrow .btn { flex:1; padding:7px 0; font-size:13px; }
+
+  /* ===== Mobile chạm (M2–M4, 2026-10-07): nút ≥44px, không chồng lấn, vừa màn 360px ===== */
+  @media (pointer:coarse) {
+    /* Fly/Debug dời sang giữa-trái, xếp dọc — tránh đè lên nút Đánh ở góc phải dưới */
+    #hud-br { right:auto; left:10px; top:196px; bottom:auto; flex-direction:column; }
+  }
+  @media (max-width:480px) {
+    /* Cụm nút góc phải co chữ, cho xuống 2 hàng để không tràn màn 360px */
+    #hud-tr { flex-wrap:wrap; justify-content:flex-end; max-width:64vw; gap:6px; }
+    #hud-tr .btn { font-size:12px; padding:8px 10px; }
+    /* Nới khoảng cách nút Né vs nút Nói (10px) để không bấm nhầm */
+    #btn-dodge { bottom:202px; }
+    /* Gợi ý nói chuyện nhích lên trên, khỏi đè joystick */
+    #talk-prompt { bottom:150px; font-size:13px; }
+  }
+
+  /* ===== Menu ☰ mobile (M3, 2026-10-07): gom 5 nút + preset đồ họa — chỉ ≤480px ===== */
+  #menu-toggle { position:fixed; top:0; left:0; opacity:0; pointer-events:none; }
+  #menu-btn { display:none; }
+  #mobile-menu { display:none; }
+  @media (max-width:480px) {
+    /* Ẩn 5 nút gốc (Inventory/Status/Control/Fly/Debug), chỉ giữ Bloom + fps + ☰ */
+    #hud-tr #btn-inv, #hud-tr #btn-status, #hud-tr #btn-control { display:none; }
+    #hud-br { display:none; }
+    #hud-tr { flex-wrap:nowrap; max-width:none; }
+    #menu-btn { display:inline-flex; order:-1; font-size:20px; }
+    /* Menu thả xuống khi bật checkbox */
+    #menu-toggle:checked ~ #mobile-menu { display:block; }
+    #mobile-menu { position:fixed; top:60px; right:10px; z-index:30; width:min(224px,72vw);
+      background:rgba(12,15,22,.96); border:1px solid #6b7280; border-radius:10px;
+      padding:10px; box-shadow:0 8px 24px rgba(0,0,0,.55); }
+    #mobile-menu .mbtn { display:flex; width:100%; margin:0 0 8px; font-size:14px; justify-content:flex-start; }
+    #mobile-menu > :last-child { margin-bottom:0; }
+    #mobile-menu .msep { font-size:12px; color:#9aa0ae; margin:2px 2px 6px; }
+    #mobile-menu .mrow { display:flex; gap:6px; }
+    #mobile-menu .mrow .mbtn { flex:1; margin-bottom:0; justify-content:center; font-size:13px; }
+    /* Quest tracker: gọn 1 dòng, tự mờ sau 5s không cập nhật (transition xử lý mờ dần) */
+    #quest { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:52vw;
+      transition:opacity 1.2s ease; }
+    #quest.dim { opacity:.18; }
+  }
+
+  /* ===== M4 (2026-10-07): dọc + ngang đều chơi được, safe-area tai thỏ ===== */
+  /* Canvas lấp đầy màn hình (dự phòng khi renderer chưa kịp setSize lúc xoay máy) */
+  #game { position:fixed; inset:0; z-index:0; }
+
+  /* Safe-area cho tai thỏ — env() có fallback 0px cho trình duyệt cũ */
+  #hud-tl { top:calc(10px + env(safe-area-inset-top, 0px)); left:calc(10px + env(safe-area-inset-left, 0px)); }
+  #hud-tr { top:calc(10px + env(safe-area-inset-top, 0px)); right:calc(10px + env(safe-area-inset-right, 0px)); }
+  #joystick { left:calc(26px + env(safe-area-inset-left, 0px)); bottom:calc(26px + env(safe-area-inset-bottom, 0px)); }
+  #hud-br { right:calc(14px + env(safe-area-inset-right, 0px)); bottom:calc(20px + env(safe-area-inset-bottom, 0px)); }
+  #btn-attack { right:calc(112px + env(safe-area-inset-right, 0px)); bottom:calc(38px + env(safe-area-inset-bottom, 0px)); }
+  #btn-dodge { right:calc(26px + env(safe-area-inset-right, 0px)); bottom:calc(196px + env(safe-area-inset-bottom, 0px)); }
+  #btn-talk { right:calc(24px + env(safe-area-inset-right, 0px)); bottom:calc(120px + env(safe-area-inset-bottom, 0px)); }
+  #talk-prompt { bottom:calc(64px + env(safe-area-inset-bottom, 0px)); }
+  #hint { bottom:calc(16px + env(safe-area-inset-bottom, 0px)); }
+  #mobile-menu { right:calc(10px + env(safe-area-inset-right, 0px)); top:calc(60px + env(safe-area-inset-top, 0px)); }
+  @media (pointer:coarse) {
+    /* Giữ vị trí Fly/Debug đã dời (M2) nhưng cộng thêm safe-area trái */
+    #hud-br { left:calc(10px + env(safe-area-inset-left, 0px)); right:auto; }
+    /* Ẩn gợi ý phím cứng trên thiết bị chạm — panel Control đã hướng dẫn mobile */
+    #hint { display:none; }
+  }
+  @media (max-width:480px) {
+    /* Giữ khoảng cách đã nới (M2) + cộng safe-area đáy */
+    #btn-dodge { bottom:calc(202px + env(safe-area-inset-bottom, 0px)); }
+    #talk-prompt { bottom:calc(150px + env(safe-area-inset-bottom, 0px)); }
+  }
+
+  /* Panel/hộp thoại không bao giờ tràn màn hình — cuộn trong thay vì vỡ layout */
+  .panel { max-height:calc(100vh - 80px); overflow-y:auto; }
+  #dialog { max-height:82vh; overflow-y:auto; }
+  #shop { max-height:88vh; overflow-y:auto; }
+
+  /* Màn hình thấp (đt xoay ngang ~360–430px cao): HUD gọn lại, debug dời khỏi joystick */
+  @media (max-height:500px) {
+    #hud-tl { transform:scale(.88); transform-origin:top left; }
+    #dialog { bottom:calc(90px + env(safe-area-inset-bottom, 0px)); max-height:62vh; }
+    #debug-panel { top:calc(56px + env(safe-area-inset-top, 0px)); bottom:auto; left:auto;
+      right:calc(10px + env(safe-area-inset-right, 0px)); max-height:calc(100vh - 70px); overflow-y:auto; }
+    #joystick { width:104px; height:104px; }
+    #stick { left:29px; top:29px; width:46px; height:46px; }
+  }
+
+  /* Màn dọc: hộp thoại nhích lên khỏi cụm nút hành động, chữ lên cấp không tràn */
+  @media (orientation:portrait) {
+    #dialog { bottom:calc(120px + env(safe-area-inset-bottom, 0px)); }
+    #lvup-text { font-size:34px; }
+  }
+
+  /* ===== C2 (2026-10-07): màn hình title/help tiếng Việt khi mới vào game ===== */
+  /* Overlay full-screen đè lên canvas lúc load; game vẫn chạy nền phía sau */
+  #title-screen { position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at 50% 28%, rgba(34,46,74,.97), rgba(6,8,14,.985) 78%);
+    padding:calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
+            calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }
+  .title-inner { text-align:center; max-width:min(460px, 94vw); max-height:100%; overflow-y:auto; }
+  #title-screen h1 { font-size:clamp(44px, 14vw, 84px); font-weight:800; letter-spacing:.12em;
+    background:linear-gradient(180deg,#fff3b0,#ffd34d 55%,#b8860b);
+    -webkit-background-clip:text; background-clip:text; color:transparent; -webkit-text-fill-color:transparent;
+    text-shadow:0 0 26px rgba(255,211,77,.25); margin-bottom:6px; }
+  #title-tagline { font-size:14px; color:#ffe9a8; font-weight:600; margin-bottom:8px; }
+  #title-first { font-size:13px; color:#9df09d; background:rgba(74,222,128,.1);
+    border:1px solid rgba(74,222,128,.5); border-radius:10px; padding:8px 12px;
+    margin:0 auto 12px; max-width:380px; font-weight:600; }
+  #title-help { list-style:none; text-align:left; margin:0 auto 16px; max-width:380px;
+    display:flex; flex-direction:column; gap:8px; padding:0; }
+  #title-help li { display:flex; gap:10px; align-items:center; font-size:13px; color:#e5e7eb;
+    background:rgba(255,255,255,.05); border:1px solid #3a4152; border-radius:10px; padding:9px 12px; }
+  #title-help .ticon { font-size:20px; flex:none; }
+  /* Nút Chơi ngay: to, dễ bấm bằng ngón tay (≥48px), mobile-first */
+  #btn-play { font-size:20px; font-weight:800; padding:16px 44px; min-height:56px; border-radius:14px;
+    background:linear-gradient(180deg,#ffd34d,#e8a91c); border:2px solid #fff3b0; color:#3a2c00; cursor:pointer;
+    box-shadow:0 4px 22px rgba(255,211,77,.4); }
+  #btn-play:active { transform:scale(.96); }
+  /* Nút "?" trong HUD: mở lại help bất cứ lúc nào */
+  #btn-help { font-weight:800; font-size:16px; }
+  /* Màn hình thấp (đt xoay ngang): title gọn lại, cuộn trong nếu cần */
+  @media (max-height:500px) {
+    #title-screen h1 { font-size:clamp(34px, 10vh, 52px); margin-bottom:4px; }
+    #title-first { margin-bottom:8px; }
+    #title-help { margin-bottom:10px; gap:6px; }
+    #btn-play { font-size:17px; padding:12px 34px; min-height:48px; }
+  }
+
+  /* ===== VN (v11): màn hình loading lúc tải game (file <8MB nên chỉ hiện ~1-2s) ===== */
+  /* Hiện ngay khi mở trang, mờ dần khi frame 3D đầu đã render (main.js gỡ khi SHOT_READY/tick đầu) */
+  #loading { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at 50% 30%, #2a3a5a, #0b0e14 75%);
+    transition:opacity .5s; }
+  #loading.hide { opacity:0; pointer-events:none; }
+  .load-inner { text-align:center; max-width:min(360px,88vw); }
+  .load-inner h2 { font-size:42px; font-weight:800; letter-spacing:.14em; color:#ffd34d;
+    text-shadow:0 0 18px rgba(255,211,77,.4); margin-bottom:6px; }
+  .load-inner p { font-size:13px; color:#ffe9a8; margin-bottom:14px; }
+  #load-bar-wrap { height:12px; background:rgba(0,0,0,.55); border:1px solid #6b7280;
+    border-radius:7px; overflow:hidden; }
+  #load-bar { height:100%; width:5%; background:linear-gradient(90deg,#e8a91c,#ffd34d);
+    transition:width .3s; }
+  #load-tip { font-size:12px; color:#9aa0ae; margin-top:10px; }
+</style>
+<!-- G4 (r186): importmap trỏ file vendor LOCAL, không CDN — dev chạy qua http.server -->
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.r186.js" } }
+</script>
+</head>
+<body>
+<div id="game"></div>
+<div id="vignette"></div><!-- v5: vignette + color grade -->
+
+<!-- Góc trái: ∞ + LV + HP/MP -->
+<div id="hud-tl">
+  <div id="inf-line"><span id="inf-symbol">∞</span><span id="inf-count">0</span></div>
+  <div id="lv">LV.1</div>
+  <div class="bar-wrap"><div class="bar" id="hp-bar"></div></div>
+  <div class="bar-wrap"><div class="bar" id="mp-bar"></div></div>
+  <div class="bar-wrap xp-wrap"><div class="bar" id="xp-bar"></div></div>
+  <div id="quest">🎯 Làm quen làng: 0/3</div>
+  <div id="dayclock">☀️ Sáng</div>
+</div>
+
+<!-- M3: menu ☰ mobile — checkbox ẩn + nút ☰ nằm trong #hud-tr, nav thả xuống ngay sau -->
+<input type="checkbox" id="menu-toggle" aria-hidden="true" tabindex="-1">
+<!-- Góc phải: nút + FPS -->
+<div id="hud-tr">
+  <label class="btn" id="menu-btn" for="menu-toggle" aria-label="Mở menu">☰</label>
+  <button class="btn" id="btn-help" aria-label="Mở hướng dẫn">?</button>
+  <button class="btn" id="btn-inv">Inventory</button>
+  <button class="btn" id="btn-status">Status</button>
+  <button class="btn" id="btn-control">Control</button>
+  <button class="btn on" id="btn-bloom">✨ Bloom</button>
+  <div id="fps">fps: --</div>
+</div>
+<!-- M3: menu thả xuống trên mobile (≤480px) — nút mirror, click chuyển tiếp sang nút gốc qua script cuối file -->
+<nav id="mobile-menu" aria-label="Menu game">
+  <button class="btn mbtn" data-target="btn-inv">🎒 Inventory</button>
+  <button class="btn mbtn" data-target="btn-status">📊 Status</button>
+  <button class="btn mbtn" data-target="btn-control">🎮 Control</button>
+  <button class="btn mbtn" data-target="btn-fly">🕊 Bay (Fly)</button>
+  <button class="btn mbtn" data-target="btn-debug">🐞 Debug</button>
+  <div class="msep">Đồ họa</div>
+  <div class="mrow">
+    <button class="btn mbtn" data-target="q-low">Thấp</button>
+    <button class="btn mbtn" data-target="q-med">Vừa</button>
+    <button class="btn mbtn" data-target="q-high">Cao</button>
+  </div>
+</nav>
+
+<!-- Panel placeholder -->
+<div class="panel" id="panel-inv"><span class="close" data-p="panel-inv">✕</span>
+  <h3>Inventory</h3><p>Túi đồ trống.<br>(Prototype: chưa có vật phẩm.)</p></div>
+<div class="panel" id="panel-status"><span class="close" data-p="panel-status">✕</span>
+  <h3>Status</h3><p>LV.1 — Dân làng mới<br>HP 100/100 · MP 100/100<br>(Prototype: chỉ số tĩnh.)</p></div>
+<div class="panel" id="panel-control"><span class="close" data-p="panel-control">✕</span>
+  <h3>Control</h3><p>WASD / mũi tên: di chuyển<br>E: nói chuyện với người dân<br>B: bật/tắt bloom giả (hào quang)<br>Kéo chuột: xoay camera<br>Space: lên (chế độ bay)<br>Mobile: joystick trái + vuốt phải xoay cam</p>
+  <div style="margin-top:10px; font-size:13px; color:#ffd34d; font-weight:600;">Đồ họa (phím Q):</div>
+  <div class="qrow">
+    <button class="btn" id="q-low">Thấp</button>
+    <button class="btn" id="q-med">Vừa</button>
+    <button class="btn" id="q-high">Cao</button>
+  </div>
+  <button class="btn" id="btn-newgame" style="margin-top:10px; width:100%;">🗑 Chơi mới (xóa save)</button>
+  <button class="btn" id="btn-export-save" style="margin-top:10px; width:100%;">⬇ Xuất save</button>
+  <button class="btn" id="btn-import-save" style="margin-top:10px; width:100%;">⬆ Nhập save</button></div>
+
+<!-- Joystick + nút dưới -->
+<div id="joystick"><div id="stick"></div></div>
+<button id="btn-talk">Nói</button>
+<button class="abtn" id="btn-attack">Đánh</button>
+<button class="abtn" id="btn-dodge">Né</button>
+<div id="talk-prompt">E: nói chuyện</div>
+<div id="hud-br">
+  <button class="btn" id="btn-fly">Fly</button>
+  <button class="btn" id="btn-debug">Debug</button>
+</div>
+
+<!-- Panel debug kiểu Vô Hạn -->
+<div id="debug-panel">
+  <h3>DEBUG</h3>
+  <div id="dbg-fps">fps: --</div>
+  <div id="dbg-npc">npc: 25</div>
+  <div id="dbg-mon">quái: 4</div>
+  <div id="dbg-draw">draw calls: --</div>
+  <div id="dbg-q">chất lượng: --</div>
+  <div id="dbg-load">load: --</div>
+  <label><input type="checkbox" id="dbg-wire"> Wireframe địa hình</label>
+  <label><input type="checkbox" id="dbg-fly"> Chế độ bay (Fly)</label>
+  <label><input type="checkbox" id="dbg-autofight" checked> Tự đánh khi gần quái</label>
+</div>
+
+<div id="dialog">
+  <h3 id="dlg-name"></h3>
+  <p id="dlg-text"></p>
+  <div id="dlg-reward"></div>
+  <button class="btn" id="dlg-next">Tiếp tục →</button>
+</div>
+<div id="lvup-flash"></div>
+<div id="lvup-text"></div>
+<div id="toast"></div>
+
+<!-- Shop Bà Tám Xén (v3) -->
+<div id="shop">
+  <h3>🏪 Bà Tám Xén — Hàng xén</h3>
+  <p class="shop-sub">"Mua nắm xôi, bà kể cho nghe chuyện này..."</p>
+  <div id="shop-items"></div>
+  <div id="shop-inf"></div>
+  <button class="btn wide" id="shop-close">Đóng</button>
+</div>
+
+<div id="hint">WASD di chuyển · E: nói chuyện · J: đánh · K: né · Q: đồ họa · B: bloom · Kéo chuột xoay camera</div>
+
+<!-- VN (v11): màn hình loading lúc tải — hiện trước cả title-screen -->
+<div id="loading">
+  <div class="load-inner">
+    <h2>INFINIA</h2>
+    <p>🌾 Đang dựng làng An Bình: nhà ngói, lũy tre, ruộng lúa, ao sen...</p>
+    <div id="load-bar-wrap"><div id="load-bar"></div></div>
+    <div id="load-tip">Mẹo: bấm vào màn hình rồi bấm ▶ Chơi ngay để có tiếng nhạc quê</div>
+  </div>
+</div>
+<script>
+/* VN (v11): thanh loading giả tiến trình (game procedural nên tải nhanh — chạy cho đẹp) */
+(function(){
+  var bar = document.getElementById('load-bar'), p = 5;
+  var iv = setInterval(function(){
+    p = Math.min(p + 8 + Math.random() * 14, 92);
+    if (bar) bar.style.width = p + '%';
+    if (p >= 92) clearInterval(iv);
+  }, 220);
+})();
+</script>
+
+<!-- C2: màn hình title/help tiếng Việt — đè lên canvas khi mới vào game -->
+<div id="title-screen">
+  <div class="title-inner">
+    <h1>INFINIA</h1>
+    <p id="title-tagline"></p>
+    <p id="title-first"></p>
+    <ul id="title-help"></ul>
+    <button id="btn-play"></button>
+  </div>
+</div>
+
+<!-- G5a: model GLB nhúng base64 (tools/embed-models.py) — script thường chạy trước module -->
+<script src="assets-embedded.js"></script>
+<script type="module" src="js/main.js"></script>
+<script>
+/* M3 (2026-10-07): glue UI mobile trong index.html — KHÔNG đụng app.js */
+(function(){
+  var menu = document.getElementById('mobile-menu');
+  var toggle = document.getElementById('menu-toggle');
+  // Chuyển tiếp click từ nút menu mobile sang nút gốc (tự đóng menu sau khi bấm)
+  menu.addEventListener('click', function(e){
+    var b = e.target.closest('[data-target]');
+    if(!b) return;
+    var orig = document.getElementById(b.getAttribute('data-target'));
+    if(orig) orig.click();
+    toggle.checked = false;
+    syncQ();
+  });
+  // Đồng bộ trạng thái preset đồ họa (Thấp/Vừa/Cao) với nút gốc trong panel Control
+  function syncQ(){
+    ['q-low','q-med','q-high'].forEach(function(id){
+      var o = document.getElementById(id);
+      var m = menu.querySelector('[data-target="'+id+'"]');
+      if(o && m) m.classList.toggle('on', o.classList.contains('on'));
+    });
+  }
+  // Quest tracker tự mờ sau 5s không cập nhật (CSS transition xử lý mờ dần)
+  var quest = document.getElementById('quest'), qt = null;
+  function armQuestFade(){
+    if(qt) clearTimeout(qt);
+    quest.classList.remove('dim');
+    qt = setTimeout(function(){ quest.classList.add('dim'); }, 5000);
+  }
+  if(quest){
+    if('MutationObserver' in window){
+      new MutationObserver(armQuestFade).observe(quest, {childList:true, characterData:true, subtree:true});
+    }
+    armQuestFade();
+  }
+  syncQ();
+})();
+</script>
+</body>
+</html>

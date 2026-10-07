@@ -1,0 +1,8 @@
+{
+  "comment": "MẪU remote config liveops — host file này cạnh game hoặc trả từ Supabase bảng remote_config; client cache 5 phút.",
+  "drop_rate_mult": 1.0,
+  "event_active": "ram-thang-8",
+  "maintenance": false,
+  "min_client_version": "11",
+  "fishing_wait_mult": 1.0
+}

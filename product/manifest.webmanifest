@@ -1,0 +1,16 @@
+{
+  "name": "INFINIA — Làng An Bình",
+  "short_name": "INFINIA",
+  "description": "Game làng quê Việt Nam 3D cozy trên trình duyệt: kết bạn, đánh quái, xây làng.",
+  "lang": "vi",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0b0e14",
+  "theme_color": "#ffd34d",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
